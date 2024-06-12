@@ -1,11 +1,3 @@
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#ifndef UNICODE
-#define UNICODE
-#endif
-
 #include <iostream>
 #include <vector>
 #include <string>
@@ -13,18 +5,17 @@
 #include <ws2tcpip.h>
 #include <WinSock2.h>
 #include <thread>
-#include <windows.h>
 
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
-
+#pragma warning(disable:4996) 
 
 int makeServer(std::string ip);
 int isClient(std::string ip);
 
 
-std::string PORT;
+int PORT;
 
 void line(int n) {
     for (int i = 0; i < n; i++) {
@@ -129,7 +120,7 @@ int isClient(std::string ip) {
 
     int wsaerr;
 
-    struct addrinfo* result = NULL, * ptr = NULL, hints;
+    sockaddr_in addr;
 
     //WSA initialization
     {
@@ -148,47 +139,38 @@ int isClient(std::string ip) {
     }
 
 
-    // Populating addrinfo var using getaddrinfo()
-    {
-        ZeroMemory(&hints, sizeof(hints));
-
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
-
-        wsaerr = getaddrinfo(ip.c_str(), PORT.c_str(), &hints, &result);
-        if (wsaerr != 0) {
-            std::cout << "GETADDRINFO() failed: " << wsaerr << std::endl;
-            WSACleanup();
-            return 1;
-        }
-    }
 
 
     // Creating a Socket using socket()
     {
-        ptr = result;
-        connectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-
+        
+        connectSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (connectSocket == INVALID_SOCKET) {
             std::cout << "INVALID SOCKET" << std::endl;
             WSACleanup();
             return 1;
         }
+
+
+
+    }
+    // Populating addr var of sockaddr_in 
+    {
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(PORT);
+        addr.sin_addr.s_addr = inet_addr(ip.c_str());
     }
 
 
     // Connecting to the server using connect()
     {
-        wsaerr = connect(connectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        wsaerr = connect(connectSocket, (sockaddr*) &addr, sizeof(addr));
         if (wsaerr != 0) {
             std::cout << "Cannot connect to the given Address" << std::endl;
             WSACleanup();
             closesocket(connectSocket);
-            freeaddrinfo(ptr);
             return 1;
         }
-        freeaddrinfo(ptr);
     }
 
      
@@ -222,7 +204,7 @@ int makeServer(std::string ip) {
 
     wsaerr = WSAStartup(wsaword, &wsaData);
 
-    struct addrinfo* result = NULL, * ptr = NULL, hints;
+    sockaddr_in addr;
 
     SOCKET lsocket;
     SOCKET acceptSocket;
@@ -243,27 +225,18 @@ int makeServer(std::string ip) {
     }
 
 
-    // Populating addrinfo var using getaddrinfo()
+    // Populating addr var
     {
-        ZeroMemory(&hints, sizeof(hints));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
-        hints.ai_flags = AI_PASSIVE;
-
-        wsaerr = getaddrinfo(ip.c_str(), PORT.c_str(), &hints, &result);
-        if (wsaerr != 0) {
-            std::cout << "GETADDRINFO() failed: " << wsaerr << std::endl;
-            WSACleanup();
-            return 1;
-        }
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(PORT);
+        addr.sin_addr.s_addr = inet_addr(ip.c_str());
     }
 
 
     // Creating a Socket using socket()
     {
 
-        lsocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+        lsocket = socket(AF_INET, SOCK_STREAM, 0);
 
         if (lsocket == INVALID_SOCKET) {
             std::cout << "INVALID SOCKET" << std::endl;
@@ -275,15 +248,13 @@ int makeServer(std::string ip) {
 
     // Binding the socket using bind()
     {
-        wsaerr = bind(lsocket, result->ai_addr, (int)result->ai_addrlen);
+        wsaerr = bind(lsocket,(sockaddr*)&addr, sizeof(addr));
         if (wsaerr != 0) {
             std::cout << "Bind Failed: " << WSAGetLastError() << std::endl;
-            freeaddrinfo(result);
             WSACleanup();
             closesocket(lsocket);
             return 1;
         }
-        freeaddrinfo(result);
     }
 
 
